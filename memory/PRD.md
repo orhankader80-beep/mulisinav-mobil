@@ -22,6 +22,10 @@ Web app: https://studybuddy-771--27jnhkys.preview.emergentagent.com/
 - Neo-brutalist design matching the web app (Bricolage/Onest/JetBrains Mono fonts)
 - Security: the gateway's cookie jar is disabled, so one user's session can't leak to another
 
+## PDF export (2026-11-13)
+- Exam screen header "PDF" button → sheet with "Sınav kâğıdı" (questions + name/class/score fields) and "Cevap anahtarlı" (answers, explanations, results)
+- Native: expo-print printToFileAsync + expo-sharing share sheet; Web: hidden iframe print (src/pdf.ts)
+
 ## Backlog
 - P1: Google login (web has it through Emergent auth, needs a mobile deep-link flow)
 - P1: Teacher/admin panel (needs new endpoints on the web backend)

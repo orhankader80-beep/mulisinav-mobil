@@ -10,6 +10,7 @@ import { StatusBar } from "expo-status-bar";
 import { api } from "@/src/api";
 import { BrutButton, Icon } from "@/src/components/ui";
 import { useToast } from "@/src/components/toast";
+import { PdfSheet } from "@/src/components/pdf-sheet";
 import { checkExam, scoreOf, totalOf, type Exam, type Question, type Result } from "@/src/exam";
 import { BORDER, fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
@@ -27,6 +28,7 @@ export default function ExamScreen() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [results, setResults] = useState<Record<string, Result>>({});
   const [checking, setChecking] = useState(false);
+  const [pdfOpen, setPdfOpen] = useState(false);
 
   useEffect(() => {
     if (!exam) return;
@@ -79,7 +81,14 @@ export default function ExamScreen() {
             {exam?.title ?? "Yükleniyor…"}
           </Text>
         </View>
+        {exam && (
+          <Pressable onPress={() => setPdfOpen(true)} style={styles.pdfBtn} testID="exam-pdf-button" hitSlop={6}>
+            <Icon name="download" size={18} color={colors.onBrandPrimary} />
+            <Text style={styles.pdfText}>PDF</Text>
+          </Pressable>
+        )}
       </View>
+      {exam && <PdfSheet visible={pdfOpen} onClose={() => setPdfOpen(false)} exam={exam} results={results} />}
 
       {isLoading ? (
         <View style={styles.center}>
@@ -231,6 +240,8 @@ const useStyles = makeStyles((c) => ({
   root: { flex: 1, backgroundColor: c.surfaceInverse },
   header: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.md, paddingBottom: spacing.md },
   back: { width: 44, height: 44, borderRadius: 22, borderWidth: BORDER, borderColor: c.onSurfaceInverse, alignItems: "center", justifyContent: "center" },
+  pdfBtn: { flexDirection: "row", alignItems: "center", gap: 6, height: 44, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: c.brandPrimary, borderWidth: BORDER, borderColor: c.onSurfaceInverse },
+  pdfText: { fontFamily: fonts.bodyBold, fontSize: 14, color: c.onBrandPrimary },
   headerEyebrow: { fontFamily: fonts.mono, fontSize: 11, letterSpacing: 1.2, color: c.brandPrimary },
   headerTitle: { fontFamily: fonts.displayBold, fontSize: 17, color: c.onSurfaceInverse, marginTop: 2 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md, padding: spacing.lg },

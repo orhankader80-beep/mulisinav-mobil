@@ -1,0 +1,29 @@
+{
+  "summary": "Frontend-only test of the new PDF export feature at 390x844. UI flow works: exam-pdf-button (84x44) opens pdf-sheet, pdf-option-paper and pdf-option-key are visible and tappable (342x85), tapping the backdrop closes the sheet, tapping an option calls print and then closes the sheet, and there are no JS page errors. examHtml was unit-tested in node with 17/17 checks passing (escaping, all questions/options/points, total, name/class/score fields only on the paper version, answer/explanation/results only on the key version). One significant bug on WEB: expo-print's web printAsync ignores the html option and just calls window.print(). It prints the current app screen (with the PDF sheet still showing), not the generated exam paper or answer key, and both options produce the same output. Regression checks passed: answering 5/5, check (score 20/100 shown and saved to the list), Tekrar çöz, and the back button.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "PDF export on web", "issue": "node_modules/expo-print/build/ExponentPrint.web.js print() = window.print(); the html passed in /app/frontend/src/pdf.ts:68 (Print.printAsync({ html })) is ignored on web. Confirmed by stubbing window.print: when it was called, the DOM held the app exam screen plus the open pdf-sheet, with no 'Ad Soyad' fields. So on web, 'Sınav kâğıdı' and 'Cevap anahtarlı' both print the live app screen (dark theme, buttons, sheet overlay) instead of the formatted paper. Native (printToFileAsync + shareAsync) is unaffected but could not be tested on web.", "affected_testIDs": ["pdf-option-paper", "pdf-option-key"]}
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/tmp/pdft/t.js (node unit check of examHtml)"],
+  "action_items": [
+    "HIGH: In /app/frontend/src/pdf.ts, replace the web branch with your own print: create a hidden iframe, write the examHtml string into iframe.contentDocument (open/write/close), wait for load, call iframe.contentWindow.focus()+print(), then remove the iframe after printing. Alternatively use window.open('', '_blank') + document.write(html) + print(), but popup blockers can stop that. Do not use Print.printAsync on web.",
+    "Optional: on web, close the sheet before printing so the overlay is never captured."
+  ],
+  "critical_code_review_comments": [
+    "pdf.ts esc() handles & < > \" and newlines. Single quotes are not escaped, but that is safe because no user content goes into attributes.",
+    "The key version uses live local 'results' state. After 'Tekrar çöz' the local results are cleared, so the key PDF will not show the saved server results. That is acceptable, but note it.",
+    "The 'Tekrar çöz' reset is local only; saved results stay on the server (existing behaviour, not part of this feature)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped)", "frontend": "90% - every UI interaction passes; the web PDF content is wrong"},
+  "seed_data_creation": "None created. NOTE: the regression check saved a result (20/100, all A answers) on the test account's exam my-exam-card-0 (9. Sınıf Fizik, id 4b040411-32b4-432f-922c-9b6d2f164bb7). No exams were deleted.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Login mobiltest16402@example.com / Test1234!, then /exams, then my-exam-card-0. Stub window.print in add_init_script to detect print calls and inspect the DOM at print time. After the fix, check that window.print is called on an iframe whose document contains 'Ad Soyad' (paper) or 'Cevap:' (key). Exam 0 now has saved results (20/100).",
+  "rca_of_issue": "expo-print@58.0.9 web module: printAsync -> ExponentPrint.web.print() -> window.print(), ignoring options.html (documented: 'on web this prints the HTML from the page'). To reproduce: open an exam, tap PDF, then Sınav kâğıdı; the browser print preview shows the app UI. Fix: build a custom iframe-based print for Platform.OS==='web'."
+}
