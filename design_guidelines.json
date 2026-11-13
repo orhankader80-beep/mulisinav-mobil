@@ -1,0 +1,145 @@
+{
+  "app_name": "Mulisınav Mobile",
+  "personality": "5 Brutalist Mobile",
+  "personality_one_liner": "A raw, confident neo-brutalist educational tool that makes generating and solving exams feel tactical, physical, and direct.",
+  "color": {
+    "surface": "#FFF6E9",
+    "onSurface": "#16130F",
+    "surfaceSecondary": "#FFFFFF",
+    "onSurfaceSecondary": "#16130F",
+    "surfaceTertiary": "#F2E8DA",
+    "onSurfaceTertiary": "#16130F",
+    "surfaceInverse": "#16130F",
+    "onSurfaceInverse": "#FFFFFF",
+    "brand": "#FFD43B",
+    "brandPrimary": "#FFD43B",
+    "onBrandPrimary": "#16130F",
+    "brandSecondary": "#2D5BFF",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#FFD43B",
+    "onBrandTertiary": "#16130F",
+    "success": "#2ECC71",
+    "onSuccess": "#16130F",
+    "warning": "#FFD43B",
+    "onWarning": "#16130F",
+    "error": "#E74C3C",
+    "onError": "#FFFFFF",
+    "info": "#2D5BFF",
+    "onInfo": "#FFFFFF",
+    "border": "#16130F",
+    "borderStrong": "#16130F",
+    "divider": "#16130F",
+    "muted": "#6E6A66"
+  },
+  "typography": {
+    "displayFontFamily": "Bricolage Grotesque",
+    "textFontFamily": "Onest",
+    "monoFontFamily": "JetBrains Mono",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24,
+      "3xl": 32
+    }
+  },
+  "spacing": {
+    "rule": "Generous padding with rigid structures. Avoid floating elements; everything is anchored with borders.",
+    "xs": 4,
+    "sm": 8,
+    "md": 16,
+    "lg": 24,
+    "xl": 32,
+    "2xl": 40,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 0,
+    "md": 4,
+    "lg": 8,
+    "pill": 999
+  },
+  "shadow_tier": "0",
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": "false",
+    "do's": [],
+    "dont's": [
+      "No blur or glassmorphism. Neo-brutalism relies on solid colors, thick borders, and hard offset shadows."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "none",
+      "android": "none",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "none",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Yeni (Ana Sayfa)",
+      "purpose": "A tactical form to generate new exams using AI, acting as the main dashboard entry.",
+      "states": {
+        "loading": "Full-screen AI generating state: large display text, rotating or bouncing robot graphic, showing steps (20-60s expected).",
+        "empty": "N/A - It is a form.",
+        "error": "Hard red border box displaying the generation error with a stark 'Tekrar Dene' button."
+      },
+      "layout": "Scrollable single column. Grade chips (5-12) as a horizontal wrapping flex list. Text input for topics. Difficulty (Kolay/Orta/Zor) and Type (Açık uçlu/Test/Karma) as segmented controls constructed with thick borders. Sticky primary 'Yazılı Oluştur' (Yellow) button at the bottom using KeyboardAvoidingView."
+    },
+    {
+      "name": "Yazılılarım",
+      "purpose": "A list of generated exams displaying score badges and average stats.",
+      "states": {
+        "loading": "Stark wireframe skeleton cards with 2.5px borders.",
+        "empty": "Illustration of a blank exam paper with 'Henüz yazılı oluşturmadınız.' text.",
+        "error": "Error message box."
+      },
+      "layout": "Top section: Average score stat block (Blue bg, White text, Monospace numbers). List of exam cards: Each card has a hard offset shadow, bold title, grade metadata, and score badge ('Henüz kontrol edilmedi' or 'X/100'). Swipe or tap to delete."
+    },
+    {
+      "name": "Sınav Çözümü",
+      "purpose": "Focus-driven exam solving view mimicking physical paper on a dark desk.",
+      "states": {
+        "loading": "Spinner over dark background.",
+        "empty": "N/A",
+        "error": "N/A"
+      },
+      "layout": "Full-screen view with a dark `#16130F` background. The exam questions sit inside a white 'paper' card (`surfaceSecondary`) with a 2.5px border and no radius. Multiple choice (A-D) options as bordered pressables. 'Cevaplarımı kontrol et' sticky at the bottom. Upon checking, bottom sheet opens with per-question result status (ok/partial/no/empty), explanations, and final score."
+    },
+    {
+      "name": "Profil",
+      "purpose": "Settings and user metadata.",
+      "states": {
+        "loading": "N/A",
+        "empty": "N/A",
+        "error": "N/A"
+      },
+      "layout": "List of bordered rows. Name, Email, About, Logout (Red accent). Bold typography for section headers."
+    }
+  ],
+  "images": {
+    "empty_exams": {
+      "url": "https://images.unsplash.com/photo-1606326608690-4e0281b1e588?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODF8MHwxfHNlYXJjaHwxfHxzdHVkZW50JTIwZXhhbSUyMG5vdGVib29rfGVufDB8fHx8MTc5NDU3OTM2Mnww&ixlib=rb-4.1.0&q=85",
+      "alt": "A pencil resting on a multiple choice answer sheet"
+    },
+    "ai_generating": {
+      "url": "https://images.unsplash.com/photo-1737644467636-6b0053476bb2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njl8MHwxfHNlYXJjaHwxfHxyb2JvdCUyMGFydGlmaWNpYWwlMjBpbnRlbGxpZ2VuY2UlMjBzdHVkeWluZ3xlbnwwfHx8fDE3OTQ1NzkzNjJ8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "A white robot studying"
+    }
+  },
+  "instructions_to_main_agent": [
+    "NEO-BRUTALIST BORDERS: All cards, inputs, and buttons MUST use `borderWidth: 2.5` and `borderColor: '#16130F'`. Never use thin or standard borders.",
+    "HARD OFFSET SHADOWS (CRITICAL): Do not use standard React Native `elevation` or blurred `boxShadow`. Implement hard offset shadows by placing an absolute-positioned View behind the main element with `backgroundColor: '#16130F'`, `top: 4`, and `left: 4`. The main element must sit above it with `borderWidth: 2.5`.",
+    "DOT GRID BACKGROUND: Implement the dot-grid background using an SVG pattern or a repeating View matrix for the `surface` screens (Ana Sayfa, Yazılılarım, Profil). Sınav Çözümü uses solid `#16130F` background.",
+    "TYPOGRAPHY ROLES: Use 'Bricolage Grotesque' for all headers/display. Use 'Onest' for body text. Use 'JetBrains Mono' (uppercase) for labels, tags, score badges, and eyebrows. Load them locally using `expo-font` as `@expo-google-fonts` is forbidden per instructions.",
+    "COLORS: Stick strictly to the provided palette. Buttons are typically `#FFD43B` (Yellow) or `#2D5BFF` (Blue). Background is `#FFF6E9` (Cream) for normal screens, and `#16130F` (Ink) for the Sınav Çözümü screen to mimic a desk.",
+    "No Glassmorphism, no blurs, no soft gradients. Transitions should be fast and linear, avoiding bouncy spring animations."
+  ]
+}

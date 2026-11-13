@@ -1,85 +1,172 @@
-import asyncio
-from contextlib import suppress
-from fastapi import FastAPI, APIRouter, Query
-from dotenv import load_dotenv
-from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
-from pymongo import ASCENDING, DESCENDING, IndexModel
-import os
-import logging
-from pathlib import Path
-from pydantic import BaseModel, Field
-from typing import List
-import uuid
-from datetime import datetime, timezone
+"""Mulisınav mobile gateway.
 
+The mobile app talks to the existing Mulisınav backend through this thin proxy.
+The web backend keeps its session in HttpOnly cookies; phones work better with
+tokens, so this gateway turns the Set-Cookie tokens into JSON and sends them
+back to the web backend as a Bearer header / refresh cookie. No data is stored here.
+"""
+import logging
+import os
+from http.cookiejar import CookieJar, DefaultCookiePolicy
+from pathlib import Path
+
+import httpx
+from dotenv import load_dotenv
+from fastapi import APIRouter, FastAPI, Request
+from fastapi.responses import JSONResponse, Response, StreamingResponse
+from starlette.background import BackgroundTask
+from starlette.middleware.cors import CORSMiddleware
 
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+load_dotenv(ROOT_DIR / ".env")
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+REMOTE = os.environ["MULISINAV_API_URL"].rstrip("/")
 
-# One entry per collection: every field a route filters, sorts or dedupes on. Add the index in the same edit as the query.
-INDEXES: dict[str, list[IndexModel]] = {
-    "status_checks": [
-        IndexModel([("id", ASCENDING)], name="id", unique=True),
-        IndexModel([("timestamp", DESCENDING)], name="timestamp_desc"),
-    ],
-}
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger("mulisinav-gateway")
 
-
-async def ensure_indexes() -> None:
-    for collection, models in INDEXES.items():
-        for model in models:  # one at a time so a bad spec skips only itself
-            try:
-                await db[collection].create_indexes([model])
-            except Exception as exc:  # never block boot on an index; the log line names what to fix
-                logging.getLogger(__name__).error("ensure_indexes(%s.%s): %s", collection, model.document["name"], exc)
-
-# Create the main app without a prefix
 app = FastAPI()
+# Never persist remote Set-Cookie tokens in the shared client: otherwise every
+# caller would silently reuse the last logged-in user's session.
+_no_cookies = CookieJar(policy=DefaultCookiePolicy(allowed_domains=[]))
+http = httpx.AsyncClient(timeout=httpx.Timeout(180.0, connect=15.0), cookies=_no_cookies)
 
-# Probe endpoint for the deployer and pod health checks: root-level (not /api), no DB call.
+
 @app.get("/health", include_in_schema=False)
 @app.head("/health", include_in_schema=False)
 async def health():
     return {"status": "ok"}
 
-# Create a router with the /api prefix
-api_router = APIRouter(prefix="/api")
+
+api = APIRouter(prefix="/api")
 
 
-# Define Models
-class StatusCheck(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+def _headers(request: Request) -> dict:
+    h = {"Content-Type": "application/json"}
+    auth = request.headers.get("authorization")
+    if auth:
+        h["Authorization"] = auth
+    guest = request.headers.get("x-guest-id")
+    if guest:
+        h["X-Guest-Id"] = guest
+    return h
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
 
-# Add your routes to the router instead of directly to app
-@api_router.get("/")
+def _tokens(resp: httpx.Response) -> dict:
+    out = {}
+    for raw in resp.headers.get_list("set-cookie"):
+        name, _, rest = raw.partition("=")
+        name = name.strip()
+        if name in ("access_token", "refresh_token"):
+            out[name] = rest.split(";", 1)[0]
+    return out
+
+
+def _json(resp: httpx.Response):
+    try:
+        return resp.json()
+    except ValueError:
+        return {"detail": "Sunucudan beklenmeyen yanıt geldi."}
+
+
+async def _remote_error(exc: Exception) -> JSONResponse:
+    logger.error("Remote call failed: %s", exc)
+    return JSONResponse({"detail": "Mulisınav sunucusuna ulaşılamıyor, tekrar dene."}, status_code=502)
+
+
+async def _refresh_from(request: Request) -> str:
+    try:
+        payload = await request.json()
+    except ValueError:
+        return ""
+    return str(payload.get("refresh_token") or "") if isinstance(payload, dict) else ""
+
+
+@api.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"message": "Mulisınav mobile gateway"}
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.dict()
-    status_obj = StatusCheck(**status_dict)
-    _ = await db.status_checks.insert_one(status_obj.dict())
-    return status_obj
 
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks(limit: int = Query(20, ge=1, le=100)):
-    status_checks = await db.status_checks.find({}, {"_id": 0}).sort("timestamp", -1).limit(limit).to_list(limit)
-    return [StatusCheck(**status_check) for status_check in status_checks]
+@api.post("/m/auth/{mode}")
+async def auth_login_register(mode: str, request: Request):
+    if mode not in ("login", "register"):
+        return JSONResponse({"detail": "Bulunamadı"}, status_code=404)
+    body = await request.body()
+    try:
+        resp = await http.post(f"{REMOTE}/auth/{mode}", content=body, headers=_headers(request))
+    except httpx.HTTPError as exc:
+        return await _remote_error(exc)
+    data = _json(resp)
+    if resp.status_code >= 400:
+        return JSONResponse(data, status_code=resp.status_code)
+    return {"user": data, **_tokens(resp)}
 
-# Include the router in the main app
-app.include_router(api_router)
+
+@api.post("/m/session/refresh")
+async def auth_refresh(request: Request):
+    rt = await _refresh_from(request)
+    try:
+        resp = await http.post(f"{REMOTE}/auth/refresh", headers={"Cookie": f"refresh_token={rt}"})
+    except httpx.HTTPError as exc:
+        return await _remote_error(exc)
+    data = _json(resp)
+    if resp.status_code >= 400:
+        return JSONResponse(data, status_code=resp.status_code)
+    tokens = _tokens(resp)
+    tokens.setdefault("refresh_token", rt)
+    return {"user": data, **tokens}
+
+
+@api.post("/m/session/logout")
+async def auth_logout(request: Request):
+    rt = await _refresh_from(request)
+    h = _headers(request)
+    h["Cookie"] = f"refresh_token={rt}"
+    try:
+        await http.post(f"{REMOTE}/auth/logout", headers=h)
+    except httpx.HTTPError as exc:
+        logger.warning("Logout forward failed: %s", exc)
+    return {"ok": True}
+
+
+@api.post("/m/generate")
+async def generate(request: Request):
+    """Pass the AI exam stream (Server-Sent Events) straight through."""
+    body = await request.body()
+    req = http.build_request("POST", f"{REMOTE}/generate", content=body, headers=_headers(request))
+    try:
+        resp = await http.send(req, stream=True)
+    except httpx.HTTPError as exc:
+        return await _remote_error(exc)
+    if resp.status_code >= 400:
+        raw = await resp.aread()
+        await resp.aclose()
+        return Response(raw, status_code=resp.status_code, media_type="application/json")
+    return StreamingResponse(
+        resp.aiter_raw(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        background=BackgroundTask(resp.aclose),
+    )
+
+
+@api.api_route("/m/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
+async def passthrough(path: str, request: Request):
+    body = await request.body()
+    try:
+        resp = await http.request(
+            request.method,
+            f"{REMOTE}/{path}",
+            content=body or None,
+            params=dict(request.query_params),
+            headers=_headers(request),
+        )
+    except httpx.HTTPError as exc:
+        return await _remote_error(exc)
+    return Response(resp.content, status_code=resp.status_code, media_type=resp.headers.get("content-type", "application/json"))
+
+
+app.include_router(api)
 
 app.add_middleware(
     CORSMiddleware,
@@ -89,20 +176,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-@app.on_event("startup")
-async def start_index_build():
-    app.state.index_task = asyncio.create_task(ensure_indexes())  # background: a big index build must not block boot
 
 @app.on_event("shutdown")
-async def shutdown_db_client():
-    app.state.index_task.cancel()  # stop a build still running before its client closes
-    with suppress(asyncio.CancelledError):
-        await app.state.index_task
-    client.close()
+async def shutdown():
+    await http.aclose()

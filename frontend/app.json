@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "frontend",
+    "name": "Mulisınav",
     "slug": "frontend",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "frontend",
-    "userInterfaceStyle": "automatic",
+    "scheme": "mulisinav",
+    "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.emergent.mulisinavmobil.o4bvng"
@@ -14,7 +14,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#000000"
+        "backgroundColor": "#FFF6E9"
       },
       "package": "com.emergent.mulisinavmobil.o4bvng"
     },
@@ -31,14 +31,15 @@
           "image": "./assets/images/splash-image.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#000000"
+          "backgroundColor": "#FFF6E9"
         }
       ],
       "expo-font",
       "expo-image",
       "expo-secure-store",
       "expo-web-browser",
-      "expo-status-bar"
+      "expo-status-bar",
+      "@react-native-vector-icons/lucide"
     ],
     "experiments": {
       "typedRoutes": true

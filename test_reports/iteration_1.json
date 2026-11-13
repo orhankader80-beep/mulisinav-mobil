@@ -1,0 +1,45 @@
+{
+  "summary": "Tested the Mulisınav mobile gateway (FastAPI proxy) and the Expo web preview at 390x844. Found and FIXED a CRITICAL cross-user session leak in the gateway: the shared httpx.AsyncClient kept the remote Set-Cookie access/refresh tokens in its cookie jar. As a result, a request with NO token returned the last logged-in user's /auth/me and /exams. The remote server also prefers the cookie over the Bearer header, so user A's token returned user B's data. After the fix, backend tests pass 17/18; the one failure is a minor 500 on a malformed JSON body. All frontend flows passed: login error and success, register validation and success, empty state, session kept after reload, all 3 tabs, generation (run ONCE, 28s, the generating-count updated, then navigated to /exam/<id>), answering test and open-ended questions, checking with AI grading (score 23/100, 5 per-question results), the score showing in Yazılılarım and the stats, reset, back, delete cancel and confirm (only the generated exam was deleted), and logout ending at the login screen while staying logged out after a reload.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "ALL /api/m/* (gateway httpx client)", "issue": "FIXED BY TESTING AGENT. The shared httpx.AsyncClient stored the remote Set-Cookie tokens in its cookie jar and sent them on every later request. Unauthenticated calls returned the last logged-in user's profile and exams, and the remote server prefers the cookie over Bearer, so users saw each other's data. Fix: AsyncClient(cookies=CookieJar(policy=DefaultCookiePolicy(allowed_domains=[]))). Reference: /app/backend/server.py:29-32", "priority": "CRITICAL"}
+    ],
+    "minor": [
+      {"endpoint": "POST /api/m/session/refresh, POST /api/m/session/logout", "issue": "An unguarded `await request.json()` returns 500 Internal Server Error for a malformed or empty JSON body. Use a Pydantic model or try/except and return 400/422."},
+      {"endpoint": "POST /api/m/session/logout", "issue": "Logout does not invalidate tokens. After logout, the old refresh_token still refreshes (200) and the old access_token still works on /auth/me. The remote backend uses stateless JWTs and only clears cookies. This is a limitation of the remote backend, not the gateway; mobile only clears the tokens locally."},
+      {"endpoint": "CORS middleware", "issue": "allow_credentials=True with allow_origins=['*']. The gateway is token-based, so allow_credentials can be False."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Yazılılarım / Profil", "issues": ["The 3 stat cards (stat-average/total/checked, profile-stat-*) use minWidth 96 instead of flex:1. The row ends at x=328 while the cards below end at x=366, leaving a ~38px empty gap on the right. Reference: app/(tabs)/exams.tsx:181 and app/(tabs)/profile.tsx stat style"]},
+      {"screen": "Yazılılarım", "issues": ["The trash button my-exam-delete-N is 40x40, below the 44pt minimum touch target. Reference: app/(tabs)/exams.tsx:190"]},
+      {"screen": "Exam (after generation)", "issues": ["Right after generation navigates to /exam/<id>, the exam content looks dimmed for a moment. It is most likely the generating Modal's fade-out overlapping the new screen, because router.push runs before setLoading(false) in (tabs)/index.tsx:45-52. Not seen when the exam is opened directly. Consider setLoading(false) before router.push."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_mulisinav_gateway.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Review and keep the cookie-jar fix in /app/backend/server.py (no-cookie policy on the httpx client). Never let the shared client persist cookies.",
+    "Validate the bodies of /m/session/refresh and /m/session/logout (Pydantic model or try/except) so malformed JSON returns 400/422 instead of 500.",
+    "Make the stat cards flex:1 so they fill the row on Yazılılarım and Profil.",
+    "Increase the trash icon button to at least 44x44.",
+    "Optional: close the generating modal (setLoading(false)) before router.push to avoid the dim transition.",
+    "Optional: set CORS allow_credentials=False."
+  ],
+  "critical_code_review_comments": [
+    "server.py: the shared httpx client persisted remote cookies, causing a cross-user session leak (fixed).",
+    "server.py: request.json() is unguarded in the refresh/logout handlers.",
+    "Exam 'Tekrar çöz' (reset) only resets locally. The server keeps the previous attempt score (the list still shows 23/100). This is probably intended, but confirm it matches the web app.",
+    "AI content quality (remote backend): a generated test question's explanation contradicted its own answer key ('B) 5 değil ... 9'). This comes from the remote AI, not the mobile app."
+  ],
+  "updated_files": ["/app/backend/server.py", "/app/backend/tests/test_mulisinav_gateway.py"],
+  "success_rate": {"backend": "94% (17/18; the 1 failure is the minor malformed-body 500)", "frontend": "100% of tested flows"},
+  "seed_data_creation": "Registered TEST users on the remote backend: test_mob_<ts>@example.com (pytest) and test_ui_<ts>@example.com (UI). Generated one exam on mobiltest16402 (7. Sınıf Matematik - Tam Sayılar), checked it, then deleted it. The account is back to its original 2 unchecked exams.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Data lives on the remote backend (MULISINAV_API_URL). Bottom sheets and modals use RN-web Modal animations, so wait about 1s after opening a sheet before clicking its buttons. exam-score exists before checking (shows ?/100), so wait for question-0-result instead. Run pytest without -p no:xdist (pytest.ini uses xdist).",
+  "rca_of_issue": "Session leak: httpx.AsyncClient keeps a cookie jar by default. Login/register/refresh responses from the remote server include Set-Cookie access_token/refresh_token, which were stored in the client and sent on every following proxied request from any user. Reproduced with curl GET /api/m/auth/me with no auth header, which returned mobiltest16402's profile with 200. Mitigation: a CookieJar with DefaultCookiePolicy(allowed_domains=[]) blocks storing and sending cookies; the explicit Cookie header for refresh/logout still works. Verified: no-token returns 401, and the regression test test_no_session_leak_between_users passes."
+}
